@@ -5,12 +5,11 @@ import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
-import android.os.Environment;
+import android.widget.Toast;
 
 import androidx.annotation.Nullable;
 
 import com.facebook.common.executors.UiThreadImmediateExecutorService;
-import com.facebook.common.internal.Files;
 import com.facebook.common.references.CloseableReference;
 import com.facebook.common.util.UriUtil;
 import com.facebook.datasource.DataSource;
@@ -50,15 +49,8 @@ import com.tencent.mm.opensdk.openapi.IWXAPIEventHandler;
 import com.tencent.mm.opensdk.openapi.WXAPIFactory;
 import com.tencent.mm.opensdk.constants.ConstantsAPI;
 import com.tencent.mm.opensdk.modelbiz.SubscribeMessage;
-
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.net.URI;
 import java.util.ArrayList;
 import java.util.UUID;
 
@@ -200,6 +192,7 @@ public class WeChatModule extends ReactContextBaseJavaModule implements IWXAPIEv
 
     /**
      * 分享文本
+     *
      * @param data
      * @param callback
      */
@@ -223,6 +216,7 @@ public class WeChatModule extends ReactContextBaseJavaModule implements IWXAPIEv
 
     /**
      * 分享图片
+     *
      * @param data
      * @param callback
      */
@@ -253,40 +247,37 @@ public class WeChatModule extends ReactContextBaseJavaModule implements IWXAPIEv
                 callback.invoke(null, api.sendReq(req));
             }
         });
-
     }
-    // private static final String SDCARD_ROOT = Environment.getExternalStorageDirectory().getAbsolutePath();
+
     /**
      * 分享本地图片
+     *
      * @param data
      * @param callback
      */
     @ReactMethod
     public void shareLocalImage(final ReadableMap data, final Callback callback) {
-        FileInputStream fs = null;
         try {
             String path = data.getString("imageUrl");
             if (path.indexOf("file://") > -1) {
                 path = path.substring(7);
             }
-            fs = new FileInputStream(path);
-            Bitmap bmp  = BitmapFactory.decodeStream(fs);
             // 初始化 WXImageObject 和 WXMediaMessage 对象
-            WXImageObject imgObj = new WXImageObject();
-            imgObj.setImagePath(path);
-            WXMediaMessage msg = new WXMediaMessage();
-            msg.mediaObject = imgObj;
+            Bitmap bitmap = BitmapFactory.decodeFile(path);
+            WXImageObject imageObject = new WXImageObject();
+            imageObject.setImagePath(path);
+            WXMediaMessage mediaMessage = new WXMediaMessage();
+            mediaMessage.mediaObject = imageObject;
             // 设置缩略图
-            msg.thumbData = bitmapResizeGetBytes(bmp, THUMB_SIZE);
-            bmp.recycle();
+            mediaMessage.thumbData = bitmapResizeGetBytes(bitmap, THUMB_SIZE);
+            bitmap.recycle();
             // 构造一个Req
             SendMessageToWX.Req req = new SendMessageToWX.Req();
-            req.transaction = "img";
-            req.message = msg;
-            // req.userOpenId = getOpenId();
+            req.transaction = "img" + System.currentTimeMillis();
+            req.message = mediaMessage;
             req.scene = data.hasKey("scene") ? data.getInt("scene") : SendMessageToWX.Req.WXSceneSession;
             callback.invoke(null, api.sendReq(req));
-        } catch (FileNotFoundException e) {
+        } catch (Exception e) {
             callback.invoke(null, false);
             e.printStackTrace();
         }
@@ -294,6 +285,7 @@ public class WeChatModule extends ReactContextBaseJavaModule implements IWXAPIEv
 
     /**
      * 分享音乐
+     *
      * @param data
      * @param callback
      */
@@ -341,6 +333,7 @@ public class WeChatModule extends ReactContextBaseJavaModule implements IWXAPIEv
 
     /**
      * 分享视频
+     *
      * @param data
      * @param callback
      */
@@ -383,6 +376,7 @@ public class WeChatModule extends ReactContextBaseJavaModule implements IWXAPIEv
 
     /**
      * 分享网页
+     *
      * @param data
      * @param callback
      */
@@ -425,6 +419,7 @@ public class WeChatModule extends ReactContextBaseJavaModule implements IWXAPIEv
 
     /**
      * 分享小程序
+     *
      * @param data
      * @param callback
      */
@@ -501,6 +496,7 @@ public class WeChatModule extends ReactContextBaseJavaModule implements IWXAPIEv
 
     /**
      * 一次性订阅消息
+     *
      * @param data
      * @param callback
      */
