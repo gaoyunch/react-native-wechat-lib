@@ -5,11 +5,12 @@ import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
-import android.widget.Toast;
+import android.os.Environment;
 
 import androidx.annotation.Nullable;
 
 import com.facebook.common.executors.UiThreadImmediateExecutorService;
+import com.facebook.common.internal.Files;
 import com.facebook.common.references.CloseableReference;
 import com.facebook.common.util.UriUtil;
 import com.facebook.datasource.DataSource;
@@ -30,6 +31,7 @@ import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.modules.core.DeviceEventManagerModule;
 import com.tencent.mm.opensdk.modelbase.BaseReq;
 import com.tencent.mm.opensdk.modelbase.BaseResp;
+import com.tencent.mm.opensdk.modelbiz.ChooseCardFromWXCardPackage;
 import com.tencent.mm.opensdk.modelmsg.SendAuth;
 import com.tencent.mm.opensdk.modelmsg.SendMessageToWX;
 import com.tencent.mm.opensdk.modelmsg.ShowMessageFromWX;
@@ -49,8 +51,19 @@ import com.tencent.mm.opensdk.openapi.IWXAPIEventHandler;
 import com.tencent.mm.opensdk.openapi.WXAPIFactory;
 import com.tencent.mm.opensdk.constants.ConstantsAPI;
 import com.tencent.mm.opensdk.modelbiz.SubscribeMessage;
+
+import java.io.BufferedInputStream;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URI;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.UUID;
 
@@ -84,8 +97,7 @@ public class WeChatModule extends ReactContextBaseJavaModule implements IWXAPIEv
             if (options > 10) {
                 options -= 8;
             } else {
-                int dstHeight = (image.getHeight() * 280) / image.getWidth();
-                return bitmapResizeGetBytes(Bitmap.createScaledBitmap(image, 280, dstHeight, true), size);
+                return bitmapResizeGetBytes(Bitmap.createScaledBitmap(image, 280, image.getHeight() / image.getWidth() * 280, true), size);
             }
             // 这里压缩options%，把压缩后的数据存放到baos中
             image.compress(Bitmap.CompressFormat.JPEG, options, baos);
@@ -191,6 +203,81 @@ public class WeChatModule extends ReactContextBaseJavaModule implements IWXAPIEv
     }
 
     /**
+     * 选择发票
+     *
+     * @param data
+     * @param callback
+     */
+    @ReactMethod
+    public void chooseInvoice(ReadableMap data, Callback callback) {
+        ChooseCardFromWXCardPackage.Req req = new ChooseCardFromWXCardPackage.Req();
+
+        req.appId = this.appId;
+        req.cardType = "INVOICE";
+        req.timeStamp = String.valueOf(data.getInt("timeStamp"));
+        req.nonceStr = data.getString("nonceStr");
+        req.cardSign = data.getString("cardSign");
+        req.signType = data.getString("signType");
+
+        callback.invoke(null, api.sendReq(req));
+    }
+
+    public byte[] loadRawDataFromURL(String u) throws Exception {
+        URL url = new URL(u);
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+
+        InputStream is = conn.getInputStream();
+        BufferedInputStream bis = new BufferedInputStream(is);
+
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+
+        final int BUFFER_SIZE = 2048;
+        final int EOF = -1;
+
+        int c;
+        byte[] buf = new byte[BUFFER_SIZE];
+
+        while (true) {
+            c = bis.read(buf);
+            if (c == EOF)
+                break;
+
+            baos.write(buf, 0, c);
+        }
+
+        conn.disconnect();
+        is.close();
+
+        byte[] data = baos.toByteArray();
+        baos.flush();
+
+        return data;
+    }
+
+
+    /**
+     * 分享文本
+     *
+     * @param data
+     * @param callback
+     */
+    @ReactMethod
+    public void shareFile(ReadableMap data, Callback callback) throws Exception {
+        WXFileObject fileObj = new WXFileObject();
+        fileObj.fileData = loadRawDataFromURL(data.getString("url"));
+
+        WXMediaMessage msg = new WXMediaMessage();
+        msg.mediaObject = fileObj;
+        msg.title = data.getString("title");
+
+        SendMessageToWX.Req req = new SendMessageToWX.Req();
+        req.transaction = String.valueOf(System.currentTimeMillis());
+        req.message = msg;
+        req.scene = data.hasKey("scene") ? data.getInt("scene") : SendMessageToWX.Req.WXSceneSession;
+        callback.invoke(null, api.sendReq(req));
+    }
+
+    /**
      * 分享文本
      *
      * @param data
@@ -247,7 +334,9 @@ public class WeChatModule extends ReactContextBaseJavaModule implements IWXAPIEv
                 callback.invoke(null, api.sendReq(req));
             }
         });
+
     }
+    // private static final String SDCARD_ROOT = Environment.getExternalStorageDirectory().getAbsolutePath();
 
     /**
      * 分享本地图片
@@ -257,27 +346,55 @@ public class WeChatModule extends ReactContextBaseJavaModule implements IWXAPIEv
      */
     @ReactMethod
     public void shareLocalImage(final ReadableMap data, final Callback callback) {
+        FileInputStream fs = null;
         try {
             String path = data.getString("imageUrl");
             if (path.indexOf("file://") > -1) {
                 path = path.substring(7);
             }
+//            int maxWidth = data.hasKey("maxWidth") ? data.getInt("maxWidth") : -1;
+            fs = new FileInputStream(path);
+            Bitmap bmp = BitmapFactory.decodeStream(fs);
+
+//            if (maxWidth > 0) {
+//                bmp = Bitmap.createScaledBitmap(bmp, maxWidth, bmp.getHeight() / bmp.getWidth() * maxWidth, true);
+//            }
+
+//            File f = Environment.getExternalStoragePublicDirectory(SDCARD_ROOT + "/react-native-wechat-lib");
+//            String fileName = "wechat-share.jpg";
+//            String tempPath = SDCARD_ROOT + "/react-native-wechat-lib";
+//            File file = new File(f, fileName);
+//            try {
+//                FileOutputStream fos = new FileOutputStream(file);
+//                bmp.compress(Bitmap.CompressFormat.JPEG, 100, fos);
+//                fos.flush();
+//                fos.close();
+//            } catch (FileNotFoundException e) {
+//                e.printStackTrace();
+//            } catch (IOException e) {
+//                e.printStackTrace();
+//            }
+
+//            int size = bmp.getByteCount();
+//            ByteArrayOutputStream var2 = new ByteArrayOutputStream();
+//            bmp.compress(Bitmap.CompressFormat.JPEG, 85, var2);
+//            int size2 = var2.toByteArray().length;
             // 初始化 WXImageObject 和 WXMediaMessage 对象
-            Bitmap bitmap = BitmapFactory.decodeFile(path);
-            WXImageObject imageObject = new WXImageObject();
-            imageObject.setImagePath(path);
-            WXMediaMessage mediaMessage = new WXMediaMessage();
-            mediaMessage.mediaObject = imageObject;
+
+            WXImageObject imgObj = new WXImageObject(bmp);
+            WXMediaMessage msg = new WXMediaMessage();
+            msg.mediaObject = imgObj;
             // 设置缩略图
-            mediaMessage.thumbData = bitmapResizeGetBytes(bitmap, THUMB_SIZE);
-            bitmap.recycle();
+            msg.thumbData = bitmapResizeGetBytes(bmp, THUMB_SIZE);
+            bmp.recycle();
             // 构造一个Req
             SendMessageToWX.Req req = new SendMessageToWX.Req();
-            req.transaction = "img" + System.currentTimeMillis();
-            req.message = mediaMessage;
+            req.transaction = "img";
+            req.message = msg;
+            // req.userOpenId = getOpenId();
             req.scene = data.hasKey("scene") ? data.getInt("scene") : SendMessageToWX.Req.WXSceneSession;
             callback.invoke(null, api.sendReq(req));
-        } catch (Exception e) {
+        } catch (FileNotFoundException e) {
             callback.invoke(null, false);
             e.printStackTrace();
         }
@@ -867,6 +984,10 @@ public class WeChatModule extends ReactContextBaseJavaModule implements IWXAPIEv
             map.putString("type", "WXLaunchMiniProgramReq.Resp");
             map.putString("extraData", extraData);
             map.putString("extMsg", extraData);
+        } else if (baseResp instanceof ChooseCardFromWXCardPackage.Resp) {
+            ChooseCardFromWXCardPackage.Resp resp = (ChooseCardFromWXCardPackage.Resp) baseResp;
+            map.putString("type", "WXChooseInvoiceResp.Resp");
+            map.putString("cardItemList", resp.cardItemList);
         }
 
         this.getReactApplicationContext()
