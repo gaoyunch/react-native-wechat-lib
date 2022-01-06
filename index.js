@@ -142,6 +142,7 @@ export const getApiVersion = wrapApi(WeChat.getApiVersion);
  * @return {Promise}
  */
 export const openWXApp = wrapApi(WeChat.openWXApp);
+export const openCustomerServiceChat = wrapApi(WeChat.openCustomerServiceChat)
 
 // wrap the APIs
 const nativeShareToTimeline = wrapApi(WeChat.shareToTimeline);

@@ -8,12 +8,21 @@ enum WXScene {
   WXSceneSpecifiedSession = 3 /**< 指定联系人  */,
 }
 
-declare module 'react-native-wechat-lib' {
+declare module '@gaoyunch/react-native-wechat-lib' {
   export function registerApp(appId: string, universalLink?: string): Promise<boolean>;
   export function isWXAppInstalled(): Promise<boolean>;
   export function isWXAppSupportApi(): Promise<boolean>;
   export function getApiVersion(): Promise<string>;
   export function openWXApp(): Promise<boolean>;
+
+  export interface CustomerServiceData {
+    corpId: string
+    url: string
+    openId?: string
+  }
+  export function openCustomerServiceChat(message: CustomerServiceData): Promise<boolean>
+
+
   export interface AuthResponse {
     errCode?: number;
     errStr?: string;

@@ -111,6 +111,7 @@ RCT_EXPORT_METHOD(registerApp:(NSString *)appid
 {
     self.appId = appid;
     callback(@[[WXApi registerApp:appid universalLink:universalLink] ? [NSNull null] : INVOKE_FAILED]);
+//    [WXApi checkUniversalLinkReady:^(WXULCheckStep step, WXCheckULStepResult* result) { NSLog(@"step：%@, %u, %@, %@", @(step), result.success, result.errorInfo, result.suggestion); }];
 }
 
 // RCT_EXPORT_METHOD(registerAppWithDescription:(NSString *)appid
@@ -138,6 +139,21 @@ RCT_EXPORT_METHOD(getWXAppInstallUrl:(RCTResponseSenderBlock)callback)
 RCT_EXPORT_METHOD(getApiVersion:(RCTResponseSenderBlock)callback)
 {
     callback(@[[NSNull null], [WXApi getApiVersion]]);
+}
+
+RCT_EXPORT_METHOD(openCustomerServiceChat:(NSDictionary *)data
+                  :(RCTResponseSenderBlock)callback)
+{
+    WXOpenCustomerServiceReq *req = [[WXOpenCustomerServiceReq alloc] init];
+    req.url = data[@"url"];
+    req.corpid = data[@"corpId"];
+    req.openID = data[@"openId"];
+    void(^completion)(BOOL);
+    completion = ^(BOOL success)
+    {
+        callback(@[success ? [NSNull null]:INVOKE_FAILED]);
+    };
+    [WXApi sendReq:req completion:completion];
 }
 
 RCT_EXPORT_METHOD(openWXApp:(RCTResponseSenderBlock)callback)
